@@ -196,13 +196,78 @@ html, body {
     background: transparent; border: 1px solid var(--card-border); color: var(--text);
     font-family: inherit; font-weight: 700; cursor: pointer; }
 .wx-result {
-    background: rgba(0,0,0,.22); border: 1px solid var(--card-border); border-radius: 14px;
-    padding: 18px; text-align: center; margin-top: 6px;
+    margin-top: 14px;
 }
-.wx-place { color: var(--muted); font-size: .95rem; }
-.wx-temp { font-size: 2rem; font-weight: 900; color: var(--gold); margin: 6px 0; }
-.wx-sub { font-size: .9rem; color: var(--text); }
-.wx-advice { margin-top: 10px; font-size: 1rem; font-weight: 700; }
+.wx-card {
+    max-width: 320px;
+    margin: 0 auto;
+    padding: 18px;
+    border: 8px solid rgba(8, 6, 20, .96);
+    border-radius: 30px;
+    background:
+        radial-gradient(circle at 84% 18%, rgba(255, 201, 74, .12), transparent 28%),
+        linear-gradient(155deg, #1f123d 0%, #2f1d55 58%, #42286c 100%);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, .34);
+    text-align: left;
+}
+.wx-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: rgba(255, 255, 255, .82);
+    font-size: .78rem;
+    margin-bottom: 12px;
+}
+.wx-network { color: var(--gold); font-weight: 900; }
+.wx-card-place {
+    color: var(--gold);
+    font-size: .92rem;
+    font-weight: 900;
+    margin: 0 0 8px;
+}
+.wx-card-main,
+.wx-card-meta,
+.wx-card-advice {
+    border: 1px solid rgba(255, 213, 103, .34);
+    background: rgba(255, 255, 255, .08);
+    border-radius: 12px;
+}
+.wx-card-main {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 12px;
+    min-height: 58px;
+}
+.wx-card-temp {
+    color: #fff;
+    font-size: 1.55rem;
+    font-weight: 900;
+    line-height: 1;
+}
+.wx-card-condition {
+    color: #fff;
+    font-size: 1.35rem;
+    font-weight: 900;
+}
+.wx-card-icon {
+    font-size: 1.35rem;
+    filter: drop-shadow(0 2px 8px rgba(255, 198, 68, .28));
+}
+.wx-card-meta {
+    margin-top: 8px;
+    padding: 12px;
+    color: rgba(255, 255, 255, .86);
+    font-size: .86rem;
+    line-height: 1.45;
+}
+.wx-card-advice {
+    margin-top: 8px;
+    padding: 12px;
+    color: #fff;
+    font-size: .95rem;
+    font-weight: 900;
+}
 
 /* ---------- 旅遊助手 ---------- */
 #ask_q {

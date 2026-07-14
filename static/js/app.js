@@ -733,15 +733,29 @@ async function fetchWeather(payload) {
         if (!d.ok) throw new Error(d.error || '查詢失敗');
         const fmtDegree = (v) => v == null ? '—' : `${Math.round(v)}°C`;
         const fmtPercent = (v) => v == null ? '—' : `${v}%`;
-        const rows = [
-            `<div class="wx-place">${escapeHtml(d.place)}</div>`,
-            `<div class="wx-temp">${fmtDegree(d.temp)}　${escapeHtml(d.desc || '—')}</div>`,
-            `<div class="wx-sub">體感 ${fmtDegree(d.feels)} · 濕度 ${fmtPercent(d.humidity)}` +
-                (d.hi != null ? ` · 高${Math.round(d.hi)}° 低${Math.round(d.lo)}°` : '') +
-                (d.pop != null ? ` · 降雨 ${d.pop}%` : '') + `</div>`,
-            `<div class="wx-advice">${escapeHtml(d.advice)}</div>`,
-        ];
-        $('wx_result').innerHTML = rows.join('');
+        const condition = d.condition || d.desc || '—';
+        const iconMatch = String(condition).match(/[\u2600-\u27BF\u{1F300}-\u{1FAFF}]/u);
+        const icon = iconMatch ? iconMatch[0] : '🌤️';
+        const conditionText = String(condition).replace(/[\u2600-\u27BF\u{1F300}-\u{1FAFF}\uFE0F]/gu, '').trim() || condition;
+        const now = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const popText = d.pop == null ? '—' : `${Math.round(d.pop)}%`;
+        $('wx_result').innerHTML = `
+            <div class="wx-card">
+                <div class="wx-card-top">
+                    <span>${now}</span>
+                    <span class="wx-network">5G ▲</span>
+                </div>
+                <div class="wx-card-place">${escapeHtml(d.place)}</div>
+                <div class="wx-card-main">
+                    <span class="wx-card-temp">${fmtDegree(d.temp)}</span>
+                    <span class="wx-card-condition">${escapeHtml(conditionText)}</span>
+                    <span class="wx-card-icon" aria-hidden="true">${icon}</span>
+                </div>
+                <div class="wx-card-meta">
+                    體感 ${fmtDegree(d.feels)} · 濕度 ${fmtPercent(d.humidity)} · 降雨 ${popText}
+                </div>
+                <div class="wx-card-advice">${escapeHtml(d.advice)}</div>
+            </div>`;
         $('wx_result').classList.remove('hidden');
         $('wx_status').textContent = '';
     } catch (e) { $('wx_status').textContent = '❌ ' + e.message; }
