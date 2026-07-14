@@ -425,13 +425,47 @@ def api_weather():
         daily = w.get("daily") or {}
         code = cur.get("weather_code")
         temp = cur.get("temperature_2m")
+        feels = cur.get("apparent_temperature")
+        humidity = cur.get("relative_humidity_2m")
         pop = (daily.get("precipitation_probability_max") or [None])[0]
         hi = (daily.get("temperature_2m_max") or [None])[0]
         lo = (daily.get("temperature_2m_min") or [None])[0]
+
+        # Render 上偶爾會拿不到新版 current 區塊；改用 Open-Meteo 舊版相容欄位備援。
+        if temp is None:
+            legacy = requests.get("https://api.open-meteo.com/v1/forecast", params={
+                "latitude": lat, "longitude": lon,
+                "current_weather": "true",
+                "hourly": "relative_humidity_2m,apparent_temperature,precipitation_probability",
+                "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+                "timezone": "auto", "forecast_days": 1,
+            }, timeout=8).json()
+            current_weather = legacy.get("current_weather") or {}
+            hourly = legacy.get("hourly") or {}
+            daily = legacy.get("daily") or daily
+            temp = current_weather.get("temperature")
+            code = current_weather.get("weathercode")
+            current_time = current_weather.get("time")
+            times = hourly.get("time") or []
+            idx = times.index(current_time) if current_time in times else 0
+
+            def hourly_value(key):
+                values = hourly.get(key) or []
+                return values[idx] if idx < len(values) else None
+
+            feels = hourly_value("apparent_temperature")
+            humidity = hourly_value("relative_humidity_2m")
+            pop = (daily.get("precipitation_probability_max") or [pop])[0]
+            hi = (daily.get("temperature_2m_max") or [hi])[0]
+            lo = (daily.get("temperature_2m_min") or [lo])[0]
+
+        if temp is None:
+            return jsonify({"ok": False, "error": "天氣資料暫時不完整，請稍後再試"}), 502
+
         return jsonify({
             "ok": True, "place": name,
-            "temp": temp, "feels": cur.get("apparent_temperature"),
-            "humidity": cur.get("relative_humidity_2m"),
+            "temp": temp, "feels": feels,
+            "humidity": humidity,
             "desc": WMO_CODES.get(code, "—"),
             "pop": pop, "hi": hi, "lo": lo,
             "advice": _weather_advice(code, temp, pop),

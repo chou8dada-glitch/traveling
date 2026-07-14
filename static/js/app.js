@@ -731,10 +731,12 @@ async function fetchWeather(payload) {
         });
         const d = await res.json();
         if (!d.ok) throw new Error(d.error || '查詢失敗');
+        const fmtDegree = (v) => v == null ? '—' : `${Math.round(v)}°C`;
+        const fmtPercent = (v) => v == null ? '—' : `${v}%`;
         const rows = [
             `<div class="wx-place">${escapeHtml(d.place)}</div>`,
-            `<div class="wx-temp">${Math.round(d.temp)}°C　${escapeHtml(d.desc)}</div>`,
-            `<div class="wx-sub">體感 ${Math.round(d.feels)}°C · 濕度 ${d.humidity}%` +
+            `<div class="wx-temp">${fmtDegree(d.temp)}　${escapeHtml(d.desc || '—')}</div>`,
+            `<div class="wx-sub">體感 ${fmtDegree(d.feels)} · 濕度 ${fmtPercent(d.humidity)}` +
                 (d.hi != null ? ` · 高${Math.round(d.hi)}° 低${Math.round(d.lo)}°` : '') +
                 (d.pop != null ? ` · 降雨 ${d.pop}%` : '') + `</div>`,
             `<div class="wx-advice">${escapeHtml(d.advice)}</div>`,
