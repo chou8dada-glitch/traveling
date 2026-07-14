@@ -18,6 +18,33 @@ import requests
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 # 多模態（圖片 / PDF）分析用模型：gemini-3.5-flash 為 GA 版，原生支援影像與 PDF
 DEFAULT_VISION_MODEL = "gemini-3.5-flash"
+FALLBACK_TRANSLATE_URL = "https://api.mymemory.translated.net/get"
+
+
+def _lang_code(name: str) -> str:
+    """把前端語言名稱轉成 MyMemory 可接受的語言代碼。"""
+    normalized = (name or "").lower()
+    mappings = [
+        (("traditional chinese", "taiwan", "zh-tw", "cht"), "zh-TW"),
+        (("simplified chinese", "china", "zh-cn", "chs"), "zh-CN"),
+        (("english", "en"), "en"),
+        (("japanese", "ja"), "ja"),
+        (("korean", "ko"), "ko"),
+        (("french", "fr"), "fr"),
+        (("german", "de"), "de"),
+        (("spanish", "es"), "es"),
+        (("italian", "it"), "it"),
+        (("thai", "th"), "th"),
+        (("vietnamese", "vi"), "vi"),
+        (("indonesian", "id"), "id"),
+        (("malay", "ms"), "ms"),
+        (("arabic", "ar"), "ar"),
+        (("auto",), "Autodetect"),
+    ]
+    for keys, code in mappings:
+        if any(key in normalized for key in keys):
+            return code
+    return "Autodetect" if normalized == "auto" else "en"
 
 
 def build_prompt(source: str, target: str):
@@ -76,6 +103,27 @@ def translate_gemini(api_key: str, model: str, system: str, text: str) -> str:
         ),
     )
     return (resp.text or "").strip()
+
+
+def translate_mymemory(text: str, source: str, target: str) -> str:
+    """免金鑰文字翻譯備援；適合旅遊短句在 LLM 額度不足時繼續可用。"""
+    source_code = _lang_code(source)
+    target_code = _lang_code(target)
+    if source_code == "Autodetect":
+        source_code = "zh-TW"
+    response = requests.get(
+        FALLBACK_TRANSLATE_URL,
+        params={"q": text, "langpair": f"{source_code}|{target_code}"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if int(payload.get("responseStatus") or 0) != 200:
+        raise RuntimeError(payload.get("responseDetails") or "fallback translation failed")
+    translated = ((payload.get("responseData") or {}).get("translatedText") or "").strip()
+    if not translated:
+        raise RuntimeError("fallback translation returned empty result")
+    return translated
 
 
 # =========================================================
@@ -248,7 +296,7 @@ def translate(data: dict) -> dict:
             # 前端未給金鑰時，後備讀伺服器環境變數（讓「伺服器共用 OpenAI 金鑰」成立；有給就照舊）
             api_key = data.get("api_key") or os.getenv("OPENAI_API_KEY") or ""
             if not api_key:
-                return {"ok": False, "error": "OpenAI 相容供應商需要 API Key"}
+                raise RuntimeError("OpenAI 相容供應商需要 API Key")
             out = translate_openai(
                 base_url=data.get("base_url", "") or os.getenv("OPENAI_BASE_URL", ""),
                 api_key=api_key,
@@ -259,7 +307,7 @@ def translate(data: dict) -> dict:
         else:  # gemini
             api_key = data.get("api_key") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
             if not api_key:
-                return {"ok": False, "error": "找不到 Gemini API Key（.env 或設定皆無）"}
+                raise RuntimeError("找不到 Gemini API Key（.env 或設定皆無）")
             out = translate_gemini(
                 api_key=api_key,
                 model=data.get("model", ""),
@@ -273,6 +321,20 @@ def translate(data: dict) -> dict:
             body = e.response.text[:300]
         except Exception:
             pass
-        return {"ok": False, "error": f"HTTP {e.response.status_code if e.response else '?'}: {body}"}
+        primary_error = f"HTTP {e.response.status_code if e.response else '?'}: {body}"
     except Exception as e:
-        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        primary_error = f"{type(e).__name__}: {e}"
+
+    try:
+        out = translate_mymemory(text=text, source=source, target=target)
+        return {
+            "ok": True,
+            "translation": out,
+            "provider": "mymemory",
+            "note": "已自動改用免金鑰備援翻譯服務",
+        }
+    except Exception as fallback_error:
+        return {
+            "ok": False,
+            "error": f"{primary_error}; fallback failed: {type(fallback_error).__name__}: {fallback_error}",
+        }
