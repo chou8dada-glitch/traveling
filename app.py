@@ -306,6 +306,22 @@ WMO_CODES = {
     95: "雷陣雨 ⛈️", 96: "雷雨伴冰雹 ⛈️", 99: "強雷雨冰雹 ⛈️",
 }
 
+WTTR_DESC_ZH = {
+    "clear": "晴朗 ☀️",
+    "sunny": "晴天 ☀️",
+    "partly cloudy": "部分多雲 ⛅",
+    "cloudy": "多雲 ☁️",
+    "overcast": "陰天 ☁️",
+    "mist": "薄霧 🌫️",
+    "fog": "有霧 🌫️",
+    "light rain": "小雨 🌧️",
+    "moderate rain": "中雨 🌧️",
+    "heavy rain": "大雨 🌧️",
+    "patchy rain nearby": "附近有陣雨 🌦️",
+    "thunderstorm": "雷雨 ⛈️",
+    "snow": "下雪 🌨️",
+}
+
 
 # 常見旅遊地點（中文名 → 座標＋顯示名）：保證熱門地點精準，避免地理編碼誤配
 COMMON_PLACES = {
@@ -376,6 +392,20 @@ def _weather_advice(code, temp, pop):
     return "，".join(tips)
 
 
+def _weather_flags(code, temp, pop):
+    rainy = code in (51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99) or (pop is not None and pop >= 50)
+    return {
+        "umbrella": bool(rainy),
+        "sunscreen": temp is not None and temp >= 30,
+        "warmth": temp is not None and temp <= 12,
+    }
+
+
+def _wttr_desc(desc):
+    key = (desc or "").strip().lower()
+    return WTTR_DESC_ZH.get(key, desc or "—")
+
+
 @app.route('/api/weather', methods=['POST'])
 def api_weather():
     data = request.get_json(force=True, silent=True) or {}
@@ -405,12 +435,14 @@ def api_weather():
                 desc = ((o.get("weather") or [{}])[0]).get("description", "—")
                 raining = wid < 700
                 temp = main.get("temp")
+                flags = _weather_flags(61 if raining else 0, temp, None)
                 return jsonify({
                     "ok": True, "place": name, "temp": temp,
                     "feels": main.get("feels_like"), "humidity": main.get("humidity"),
-                    "desc": desc, "pop": None,
+                    "desc": desc, "condition": desc, "pop": None,
                     "hi": main.get("temp_max"), "lo": main.get("temp_min"),
                     "advice": _weather_advice(61 if raining else 0, temp, None),
+                    **flags,
                     "source": "owm",
                 })
             # OWM 失敗就繼續走 Open-Meteo
@@ -488,27 +520,34 @@ def api_weather():
             hi = number(today.get("maxtempC"))
             lo = number(today.get("mintempC"))
             pop = max_hourly("chanceofrain")
-            desc = ((current.get("lang_zh") or current.get("weatherDesc") or [{}])[0]).get("value") or "—"
+            desc = _wttr_desc(((current.get("lang_zh") or current.get("weatherDesc") or [{}])[0]).get("value"))
+            flags = _weather_flags(61 if (pop or 0) >= 50 else 0, temp, pop)
             return jsonify({
                 "ok": True, "place": name,
                 "temp": temp, "feels": feels,
                 "humidity": humidity,
                 "desc": desc,
+                "condition": desc,
                 "pop": pop, "hi": hi, "lo": lo,
                 "advice": _weather_advice(61 if (pop or 0) >= 50 else 0, temp, pop),
+                **flags,
                 "source": "wttr",
             })
 
         if temp is None:
             return jsonify({"ok": False, "error": "天氣資料暫時不完整，請稍後再試"}), 502
 
+        desc = WMO_CODES.get(code, "—")
+        flags = _weather_flags(code, temp, pop)
         return jsonify({
             "ok": True, "place": name,
             "temp": temp, "feels": feels,
             "humidity": humidity,
-            "desc": WMO_CODES.get(code, "—"),
+            "desc": desc,
+            "condition": desc,
             "pop": pop, "hi": hi, "lo": lo,
             "advice": _weather_advice(code, temp, pop),
+            **flags,
         })
     except Exception as e:
         logger.error(f"weather error: {e}")
