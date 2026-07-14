@@ -460,6 +460,46 @@ def api_weather():
             lo = (daily.get("temperature_2m_min") or [lo])[0]
 
         if temp is None:
+            wttr = requests.get(
+                f"https://wttr.in/{lat},{lon}",
+                params={"format": "j1", "lang": "zh"},
+                timeout=10,
+            ).json()
+            current = (wttr.get("current_condition") or [{}])[0]
+            today = (wttr.get("weather") or [{}])[0]
+
+            def number(value):
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    return None
+
+            def max_hourly(key):
+                values = []
+                for item in today.get("hourly") or []:
+                    value = number(item.get(key))
+                    if value is not None:
+                        values.append(value)
+                return max(values) if values else None
+
+            temp = number(current.get("temp_C"))
+            feels = number(current.get("FeelsLikeC"))
+            humidity = number(current.get("humidity"))
+            hi = number(today.get("maxtempC"))
+            lo = number(today.get("mintempC"))
+            pop = max_hourly("chanceofrain")
+            desc = ((current.get("lang_zh") or current.get("weatherDesc") or [{}])[0]).get("value") or "—"
+            return jsonify({
+                "ok": True, "place": name,
+                "temp": temp, "feels": feels,
+                "humidity": humidity,
+                "desc": desc,
+                "pop": pop, "hi": hi, "lo": lo,
+                "advice": _weather_advice(61 if (pop or 0) >= 50 else 0, temp, pop),
+                "source": "wttr",
+            })
+
+        if temp is None:
             return jsonify({"ok": False, "error": "天氣資料暫時不完整，請稍後再試"}), 502
 
         return jsonify({
